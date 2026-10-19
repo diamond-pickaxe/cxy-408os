@@ -29,7 +29,7 @@ async function api(path, method = 'GET', payload) {
 }
 const profile = await api('/user');
 const repositoryPath = `/repos/${profile.login}/${repoName}`;
-const packageFiles = [`yu-daguan-local-${tag}.zip`, `${displayName}.html`, 'SHA256SUMS.txt'];
+const packageFiles = [`yu-daguan-local-${tag}.zip`, `yu-daguan-local-${tag}.html`, 'SHA256SUMS.txt'];
 const assets = await Promise.all(packageFiles.map(async name => ({ name, content: await readFile(safePath(`dist/${tag}/${name}`)) })));
 const sums = assets.find(a => a.name === 'SHA256SUMS.txt').content.toString('utf8');
 for (const asset of assets.filter(a => a.name !== 'SHA256SUMS.txt')) {
@@ -40,9 +40,13 @@ if (git('status', '--porcelain')) throw Error('请先提交全部源码变更后
 const seedBox = { window: {} };
 runInNewContext(await readFile(safePath('seed.js'), 'utf8'), seedBox);
 for (const field of ['mastery', 'notes', 'attempts', 'collections']) if (Object.keys(seedBox.window.OFFLINE_SEED[field]).length) throw Error('发布初始化数据中含有个人记录，已停止。');
-const publishedFiles = git('ls-tree', '-r', '--name-only', 'HEAD');
-if (/^(?:user-.*\.json|\.private\/|原站学习记录备份\.json)/m.test(publishedFiles)) throw Error('待发布提交包含个人文件，已停止。');
-if (Number(git('rev-list', '--count', 'HEAD')) !== 1) throw Error('初始发布仅允许已清理个人数据的独立提交历史。');
+for (const commit of git('rev-list', 'HEAD').split('\n')) {
+  const publishedFiles = git('ls-tree', '-r', '--name-only', commit);
+  if (/^(?:user-.*\.json|\.private\/|原站学习记录备份\.json)/m.test(publishedFiles)) throw Error('待发布历史包含个人文件，已停止。');
+  const historicalSeed = { window: {} };
+  runInNewContext(git('show', `${commit}:seed.js`), historicalSeed);
+  for (const field of ['mastery', 'notes', 'attempts', 'collections']) if (Object.keys(historicalSeed.window.OFFLINE_SEED[field]).length) throw Error('待发布历史中含有个人记录，已停止。');
+}
 let repository;
 const existing = await fetch(`https://api.github.com${repositoryPath}`, { headers, signal: AbortSignal.timeout(15000) });
 if (existing.status === 404) repository = await api('/user/repos', 'POST', { name: repoName, description: `${displayName}：408 真题离线练习、知识点筛选及本地学习记录`, private: true, has_issues: true, has_wiki: false, auto_init: false });
@@ -57,20 +61,26 @@ const remotes = git('remote').split('\n');
 if (!remotes.includes('origin')) git('remote', 'add', 'origin', repository.clone_url);
 git('push', '-u', 'origin', 'main');
 console.log(`源码已推送：${repository.html_url}`);
-let release;
-const previous = await fetch(`https://api.github.com${repositoryPath}/releases/tags/${tag}`, { headers, signal: AbortSignal.timeout(15000) });
-if (previous.ok) {
-  release = await previous.json();
+let release = (await api(`${repositoryPath}/releases?per_page=100`)).find(item => item.tag_name === tag);
+if (release) {
   if (!release.draft) throw Error('该版本已发布；请使用新的版本号。');
-} else if (previous.status === 404) release = await api(`${repositoryPath}/releases`, 'POST', {
+} else release = await api(`${repositoryPath}/releases`, 'POST', {
   tag_name: tag, target_commitish: revision, name: `${displayName} ${tag}`, draft: true, prerelease: false,
   body: `# ${displayName} ${tag}\n\n下载并解压 ZIP，双击“${displayName}.html”即可离线使用。\n\n- 2009—2026 年 18 套试卷、846 道题，题目、答案、解析、图片和公式字体均已内置。\n- 科目、章、小节三级目录选择与范围高亮，开刷后连续显示全部筛选题目。\n- 点击年份直接整卷练习，保留选择题和非选择题筛选。\n- 掌握标记、笔记、收藏、本地学习历史与备份恢复。\n- 不预置任何个人学习记录，支持导入自己的备份。\n\n建议固定使用同一个浏览器与打开方式；切换前导出记录，在新环境导入。\n\n附件提供便携 ZIP、单文件 HTML 和 SHA-256 校验文件。此版本尚未包含多设备自动同步。\n\n源码提交：${revision}`
 });
-else throw Error(`无法检查 Release：${previous.status}`);
 for (const asset of assets) {
-  if (release.assets?.some(a => a.name === asset.name)) continue;
+  const digest = `sha256:${createHash('sha256').update(asset.content).digest('hex')}`;
+  let existingAsset = release.assets?.find(a => a.name === asset.name);
+  if (!existingAsset) {
+    const identical = release.assets?.find(a => a.digest === digest && a.size === asset.content.length);
+    if (identical) existingAsset = await api(`${repositoryPath}/releases/assets/${identical.id}`, 'PATCH', { name: asset.name, label: asset.name.endsWith('.html') ? `${displayName}.html` : asset.name });
+  }
+  if (existingAsset?.digest === digest && existingAsset.size === asset.content.length) continue;
+  // Only replace generated attachments on this unpublished draft; local originals remain available.
+  if (existingAsset) await api(`${repositoryPath}/releases/assets/${existingAsset.id}`, 'DELETE');
   const upload = new URL(release.upload_url.replace(/\{.*$/, ''));
   upload.searchParams.set('name', asset.name);
+  if (asset.name.endsWith('.html')) upload.searchParams.set('label', `${displayName}.html`);
   const response = await fetch(upload, { method: 'POST', headers: { ...headers, 'Content-Type': asset.name.endsWith('.zip') ? 'application/zip' : asset.name.endsWith('.html') ? 'text/html' : 'text/plain', 'Content-Length': String(asset.content.length) }, body: asset.content, signal: AbortSignal.timeout(180000) });
   const result = await response.json();
   if (!response.ok) throw Error(`上传失败 ${asset.name}: ${result.message}`);
@@ -83,7 +93,7 @@ for (const asset of assets) {
   const expected = `sha256:${createHash('sha256').update(asset.content).digest('hex')}`;
   if (remote.digest && remote.digest !== expected) throw Error(`Release 附件哈希不一致：${asset.name}`);
 }
-const published = await api(`${repositoryPath}/releases/${release.id}`, 'PATCH', { draft: false, make_latest: 'true' });
+const published = await api(`${repositoryPath}/releases/${release.id}`, 'PATCH', { draft: false, make_latest: 'true', target_commitish: revision, body: release.body.replace(/源码提交：[a-f0-9]+/, `源码提交：${revision}`) });
 const result = { repository: repository.html_url, private: repository.private, release: published.html_url, version, commit: revision, assets: complete.assets.map(a => ({ name: a.name, size: a.size, download: a.browser_download_url, digest: a.digest })) };
 await writeFile(safePath('release-result.json'), JSON.stringify(result, null, 2));
 console.log(JSON.stringify(result, null, 2));

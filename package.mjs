@@ -67,8 +67,9 @@ const files = [`${displayName}.html`, `启动${displayName}.cmd`, 'serve.mjs', '
 const entries = await Promise.all(files.map(async file => ({ name: `${displayName}/${file}`, content: await readFile(safePath(file)) })));
 const zipName = `yu-daguan-local-v${version}.zip`;
 await writeFile(safePath(`${destination}/${zipName}`), zip(entries));
-await copyFile(safePath(`${displayName}.html`), safePath(`${destination}/${displayName}.html`));
-const outputs = [zipName, `${displayName}.html`];
+const htmlName = `yu-daguan-local-v${version}.html`;
+await copyFile(safePath(`${displayName}.html`), safePath(`${destination}/${htmlName}`));
+const outputs = [zipName, htmlName];
 const checksums = [];
 for (const file of outputs) {
   const bytes = await readFile(safePath(`${destination}/${file}`));
