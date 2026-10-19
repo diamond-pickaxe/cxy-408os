@@ -13,7 +13,7 @@ function safePath(name) {
   return path;
 }
 const { version, displayName } = JSON.parse(await readFile(safePath('package.json'), 'utf8'));
-const repoName = 'yu-daguan-local';
+const repoName = 'cxy-408os';
 const tag = `v${version}`;
 const trustedRoot = root.replaceAll('\\', '/');
 const git = (...args) => execFileSync('git', ['-c', `safe.directory=${trustedRoot}`, ...args], { cwd: root, encoding: 'utf8', windowsHide: true, env: { ...process.env, GCM_INTERACTIVE: 'never', GIT_TERMINAL_PROMPT: '0' } }).trim();
@@ -59,7 +59,7 @@ else {
   let remote = ''; try { remote = git('remote', 'get-url', 'origin'); } catch {}
   if (remote !== repository.clone_url) throw Error('同名仓库已存在，且不是当前项目的远端；已停止以避免修改其他项目。');
 }
-if (!repository.private) throw Error('当前发布流程面向私有仓库。');
+if (repository.full_name !== 'diamond-pickaxe/cxy-408os') throw Error('发布目标与已确认仓库不一致。');
 const remotes = git('remote').split('\n');
 if (!remotes.includes('origin')) git('remote', 'add', 'origin', repository.clone_url);
 git('push', '-u', 'origin', 'main');
