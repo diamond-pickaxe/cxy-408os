@@ -14,6 +14,7 @@ function safePath(name) {
 }
 execFileSync(process.execPath, [safePath('build.mjs')], { cwd: root, stdio: 'inherit' });
 execFileSync(process.execPath, [safePath('verify.mjs')], { cwd: root, stdio: 'inherit' });
+execFileSync(process.execPath, [safePath('build-exe.mjs')], { cwd: root, stdio: 'inherit' });
 const { version, displayName } = JSON.parse(await readFile(safePath('package.json'), 'utf8'));
 const destination = `dist/v${version}`;
 await mkdir(safePath(destination), { recursive: true });
@@ -63,13 +64,14 @@ function zip(entries) {
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...local, ...directory, end]);
 }
-const files = [`${displayName}.html`, `启动${displayName}.cmd`, 'serve.mjs', 'launch.mjs', '使用说明.txt', 'THIRD_PARTY_NOTICES.md'];
-const entries = await Promise.all(files.map(async file => ({ name: `${displayName}/${file}`, content: await readFile(safePath(file)) })));
+const exeName = `yu-daguan-local-v${version}-win-x64.exe`;
+const entries = [{ name: `${displayName}/${displayName}.exe`, content: await readFile(safePath(`${destination}/${exeName}`)) }];
+for (const file of ['使用说明.txt', 'THIRD_PARTY_NOTICES.md']) entries.push({ name: `${displayName}/${file}`, content: await readFile(safePath(file)) });
 const zipName = `yu-daguan-local-v${version}.zip`;
 await writeFile(safePath(`${destination}/${zipName}`), zip(entries));
 const htmlName = `yu-daguan-local-v${version}.html`;
 await copyFile(safePath(`${displayName}.html`), safePath(`${destination}/${htmlName}`));
-const outputs = [zipName, htmlName];
+const outputs = [exeName, zipName, htmlName];
 const checksums = [];
 for (const file of outputs) {
   const bytes = await readFile(safePath(`${destination}/${file}`));

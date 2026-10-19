@@ -4,11 +4,15 @@
 
 ## 打开方式
 
-从 Release 下载 `yu-daguan-local-v1.0.0.zip`，解压后双击 **宇的大观本地版.html** 即可使用。
+Windows 10 / 11（64 位）推荐从 Release 下载 **`yu-daguan-local-v1.1.0-win-x64.exe`**，双击即可使用，**无需安装 Node.js，也无需安装程序**。题库和本机服务已经内置于这一个 EXE。
 
-Windows 也可以双击 **启动宇的大观本地版.cmd**：已安装 Node.js 时在固定本机地址 `http://127.0.0.1:4188` 打开；没有 Node.js 时直接打开 HTML。
+也可以下载 `yu-daguan-local-v1.1.0.zip`，解压后双击 **宇的大观本地版.exe**。启动后优先使用 Windows 的 Edge 打开独立刷题窗口；如果找不到 Edge，则使用默认浏览器。程序只在本机 `127.0.0.1:4198` 提供页面，不访问远端服务。
 
-建议固定使用同一个浏览器和打开方式。切换浏览器、电脑或打开方式之前，先导出学习记录，再在新环境导入。
+关闭刷题窗口后，右下角托盘中仍可找到程序；双击图标重新打开，右键选择“退出”关闭本机服务。再次双击 EXE 会打开已经运行的实例。
+
+Release 同时保留独立 HTML 下载，适合直接用浏览器打开。
+
+从旧 HTML / Node.js 版本切换到 EXE 版时，请先在旧页面点击“备份学习记录”，再在 EXE 的刷题窗口点击“导入备份”。后续升级 EXE 可继续使用同一浏览器中保留的记录。
 
 ## 功能
 
@@ -30,7 +34,7 @@ Windows 也可以双击 **启动宇的大观本地版.cmd**：已安装 Node.js 
 
 ## 开发与验证
 
-需要 Node.js 20 或以上版本。应用本身没有必须在线安装的运行依赖，开发测试依赖可通过以下方式安装：
+以下要求仅用于开发和重新构建。最终 EXE 用户无需安装 Node.js。构建需 Windows 10 / 11、Node.js 20 或以上版本，使用系统自带的 .NET Framework C# 编译器，无需额外安装 .NET SDK。
 
 ```sh
 npm ci
@@ -39,13 +43,13 @@ npm run package
 npm start
 ```
 
-`npm run check` 检查筛选、整卷模式、题型筛选、答题记录持久化与备份恢复，并验证 846 道题的离线资源和发布包不含个人记录。`npm run package` 生成单文件 HTML、便携 ZIP 和校验文件。
+`npm run check` 检查筛选、整卷模式、题型筛选、答题记录持久化与备份恢复，验证 846 道题的离线资源、发布包不含个人记录，并测试 EXE 在不含 Node.js 的 PATH 下运行。`npm run package` 生成单文件 EXE、便携 ZIP、备用 HTML 和校验文件。
 
-主要文件：`app.js` 为练习逻辑，`app.css` 为界面，`data.js` 为题库，`seed.js` 为空白初始进度。`build.mjs` 打包为独立 HTML，`tests/` 包含行为回归测试。
+主要文件：`app.js` 为练习逻辑，`app.css` 为界面，`data.js` 为题库，`seed.js` 为空白初始进度。`build.mjs` 打包为独立 HTML；`desktop/Program.cs` 实现 EXE 的本机服务和托盘菜单；`build-exe.mjs` 将经过验证的题库压缩并嵌入 EXE。`tests/` 包含练习行为和 EXE 回归测试。
 
 ## 版本范围
 
-v1.0.0 提供本机离线使用与手动备份。多设备自动同步尚未实现。
+v1.1.0 提供无需 Node.js 的单文件 Windows EXE、本机离线使用与手动备份。多设备自动同步尚未实现。
 
 ## 来源
 

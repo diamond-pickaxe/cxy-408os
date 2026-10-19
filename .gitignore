@@ -1,6 +1,7 @@
 node_modules/
 .npm-cache/
 .private/
+.desktop-build/
 user-*.json
 dist/
 coverage/

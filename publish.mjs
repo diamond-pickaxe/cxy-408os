@@ -29,12 +29,15 @@ async function api(path, method = 'GET', payload) {
 }
 const profile = await api('/user');
 const repositoryPath = `/repos/${profile.login}/${repoName}`;
-const packageFiles = [`yu-daguan-local-${tag}.zip`, `yu-daguan-local-${tag}.html`, 'SHA256SUMS.txt'];
+const packageFiles = [`yu-daguan-local-${tag}-win-x64.exe`, `yu-daguan-local-${tag}.zip`, `yu-daguan-local-${tag}.html`, 'SHA256SUMS.txt'];
 const assets = await Promise.all(packageFiles.map(async name => ({ name, content: await readFile(safePath(`dist/${tag}/${name}`)) })));
 const sums = assets.find(a => a.name === 'SHA256SUMS.txt').content.toString('utf8');
 for (const asset of assets.filter(a => a.name !== 'SHA256SUMS.txt')) {
   if (!sums.includes(`${createHash('sha256').update(asset.content).digest('hex')}  ${asset.name}`)) throw Error(`Asset checksum mismatch: ${asset.name}`);
 }
+const resourceCheck = execFileSync(safePath(`dist/${tag}/yu-daguan-local-${tag}-win-x64.exe`), ['--resource-check'], { encoding: 'utf8', windowsHide: true });
+const htmlAsset = assets.find(asset => asset.name.endsWith('.html'));
+if (!resourceCheck.includes(`HTML_SHA256=${createHash('sha256').update(htmlAsset.content).digest('hex')}`)) throw Error('EXE 内置题库与发布 HTML 不一致，已停止。');
 const revision = git('rev-parse', 'HEAD');
 if (git('status', '--porcelain')) throw Error('请先提交全部源码变更后再发布。');
 const seedBox = { window: {} };
@@ -66,7 +69,7 @@ if (release) {
   if (!release.draft) throw Error('该版本已发布；请使用新的版本号。');
 } else release = await api(`${repositoryPath}/releases`, 'POST', {
   tag_name: tag, target_commitish: revision, name: `${displayName} ${tag}`, draft: true, prerelease: false,
-  body: `# ${displayName} ${tag}\n\n下载并解压 ZIP，双击“${displayName}.html”即可离线使用。\n\n- 2009—2026 年 18 套试卷、846 道题，题目、答案、解析、图片和公式字体均已内置。\n- 科目、章、小节三级目录选择与范围高亮，开刷后连续显示全部筛选题目。\n- 点击年份直接整卷练习，保留选择题和非选择题筛选。\n- 掌握标记、笔记、收藏、本地学习历史与备份恢复。\n- 不预置任何个人学习记录，支持导入自己的备份。\n\n建议固定使用同一个浏览器与打开方式；切换前导出记录，在新环境导入。\n\n附件提供便携 ZIP、单文件 HTML 和 SHA-256 校验文件。此版本尚未包含多设备自动同步。\n\n源码提交：${revision}`
+  body: `# ${displayName} ${tag}\n\nWindows 10 / 11（64位）推荐下载 EXE，双击即可使用，无需安装 Node.js。也可下载 ZIP 解压后运行“${displayName}.exe”。\n\n- 2009—2026 年 18 套试卷、846 道题，题目、答案、解析、图片和公式字体均已内置。\n- 科目、章、小节三级目录选择与范围高亮，开刷后连续显示全部筛选题目。\n- 点击年份直接整卷练习，保留选择题和非选择题筛选。\n- 掌握标记、笔记、收藏、本地学习历史与备份恢复。\n- EXE 内置题库与本机服务，自动打开刷题窗口，支持托盘重新打开与退出。\n- 不预置任何个人学习记录，支持导入自己的备份。\n\n从旧网页版本切换到 EXE 时，请先导出学习记录，再在 EXE 窗口导入。程序仅在本机 127.0.0.1:4198 提供页面。关闭窗口后可以从右下角托盘重新打开或退出。\n\n附件提供单文件 EXE、便携 ZIP、备用 HTML 和 SHA-256 校验文件。此版本尚未包含多设备自动同步。\n\n源码提交：${revision}`
 });
 for (const asset of assets) {
   const digest = `sha256:${createHash('sha256').update(asset.content).digest('hex')}`;
@@ -81,7 +84,7 @@ for (const asset of assets) {
   const upload = new URL(release.upload_url.replace(/\{.*$/, ''));
   upload.searchParams.set('name', asset.name);
   if (asset.name.endsWith('.html')) upload.searchParams.set('label', `${displayName}.html`);
-  const response = await fetch(upload, { method: 'POST', headers: { ...headers, 'Content-Type': asset.name.endsWith('.zip') ? 'application/zip' : asset.name.endsWith('.html') ? 'text/html' : 'text/plain', 'Content-Length': String(asset.content.length) }, body: asset.content, signal: AbortSignal.timeout(180000) });
+  const response = await fetch(upload, { method: 'POST', headers: { ...headers, 'Content-Type': asset.name.endsWith('.zip') ? 'application/zip' : asset.name.endsWith('.html') ? 'text/html' : asset.name.endsWith('.exe') ? 'application/octet-stream' : 'text/plain', 'Content-Length': String(asset.content.length) }, body: asset.content, signal: AbortSignal.timeout(180000) });
   const result = await response.json();
   if (!response.ok) throw Error(`上传失败 ${asset.name}: ${result.message}`);
   console.log(`附件已上传：${asset.name} (${result.size} bytes)`);
@@ -94,6 +97,6 @@ for (const asset of assets) {
   if (remote.digest && remote.digest !== expected) throw Error(`Release 附件哈希不一致：${asset.name}`);
 }
 const published = await api(`${repositoryPath}/releases/${release.id}`, 'PATCH', { draft: false, make_latest: 'true', target_commitish: revision, body: release.body.replace(/源码提交：[a-f0-9]+/, `源码提交：${revision}`) });
-const result = { repository: repository.html_url, private: repository.private, release: published.html_url, version, commit: revision, assets: complete.assets.map(a => ({ name: a.name, size: a.size, download: a.browser_download_url, digest: a.digest })) };
+const result = { repository: repository.html_url, private: repository.private, release: published.html_url, version, commit: revision, assets: published.assets.map(a => ({ name: a.name, size: a.size, download: a.browser_download_url, digest: a.digest })) };
 await writeFile(safePath('release-result.json'), JSON.stringify(result, null, 2));
 console.log(JSON.stringify(result, null, 2));
