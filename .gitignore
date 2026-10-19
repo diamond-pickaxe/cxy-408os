@@ -1,0 +1,16 @@
+node_modules/
+.npm-cache/
+.private/
+user-*.json
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+宇的大观本地版.html
+原站学习记录备份.json
+offline-check.json
+verification.json
+release-result.json
+publish-notes.md

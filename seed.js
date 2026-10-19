@@ -1,0 +1,1 @@
+window.OFFLINE_SEED={"mastery":{},"notes":{},"attempts":{},"collections":[],"migration":{"capturedAt":"2026-10-19T02:58:18.278Z","marked":0,"studyDays":0,"streak":0,"historyNote":"未预置个人学习记录。可导入自己的备份，或从现在开始记录本地学习进度。"}};
